@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>Bản đồ hiển thị địa chỉ mới nhất từ tọa độ</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <style>
+    #map { height: 500px; margin-top:10px; }
+    .info-panel {
+      background: white;
+      border-radius: 4px;
+      box-shadow: 0 0 8px rgba(0,0,0,0.2);
+      padding: 12px;
+      position: absolute;
+      top: 72px;
+      right: 24px;
+      z-index: 9999;
+      min-width: 250px;
+    }
+    .info-panel button { margin-top:8px;}
+    body { font-family: Arial; }
+    .highlight { color: #e67e22; font-weight: bold; }
+    .footer {
+      text-align: center;
+      margin-top: 32px;
+      font-size: 16px;
+      color: #999;
+    }
+  </style>
+</head>
+<body>
+  <h2>
+    Nhập Tọa độ thập phân (DD) hoặc phút giây (DMS)<br>
+    VD: 
+    <span class="highlight">10.771716, 106.706078</span> hoặc 
+    <span class="highlight">10°46'18.3"N 106°42'21.9"E</span> để xem địa chỉ mới
+  </h2>
+  <input type="text" id="inputLocation" style="width:320px" placeholder="Nhập tọa độ thập phân hoặc phút giây...">
+  <button onclick="handleSearch()">Tìm kiếm</button>
+  <div id="map"></div>
+  <div id="infoPanel" class="info-panel" style="display:none"></div>
+  <div class="footer">
+    Created by Minh Nhựt<br>
+    © 2025
+  </div>
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script>
+    let map = L.map('map').setView([10.7769, 106.7009], 10);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: "©OpenStreetMap" }).addTo(map);
+    let marker = null;
+
+    async function handleSearch() {
+      const inputRaw = document.getElementById('inputLocation').value.trim();
+      const input = inputRaw.replace(/[()]/g, '').replace(/\s+/g, ' ').replace(/,/g, ',').replace(/^\s+|\s+$/g, '');
+
+      let latlng = parseLatLng(input);
+      if (!latlng) {
+        showInfo("Không nhận diện được tọa độ. Vui lòng nhập lại theo hướng dẫn!");
+        return;
+      }
+      showMarker(latlng);
+      map.setView([latlng.lat, latlng.lng], 16);
+      showInfo("Đang tìm địa chỉ...");
+      const address = await fetchAddress(latlng.lat, latlng.lng);
+      showInfo(`<b>Địa chỉ mới nhất:</b><br><span id="addressText">${address}</span>
+        <br><button onclick="copyAddress()">Sao chép địa chỉ</button>`);
+    }
+
+    function parseLatLng(str) {
+      // Xử lý số thập phân
+      let reDecimal = /^\s*([\-+]?\d+(?:\.\d+)?)\s*,\s*([\-+]?\d+(?:\.\d+)?)\s*$/i;
+      let m = str.match(reDecimal);
+      if (m) return {lat: parseFloat(m[1]), lng: parseFloat(m[2])};
+
+      // Tọa độ độ phút giây
+      let reDMS = /(\d+)[°:\s](\d+)[\':\s](\d+(\.\d+)?)[\"\s]?([NS])?\s*[ ,]?\s*(\d+)[°:\s](\d+)[\':\s](\d+(\.\d+)?)[\"\s]?([EW])?/i;
+      m = str.match(reDMS);
+      if (m) {
+        let lat = dms2dec(+m[1], +m[2], +m[3], m[5]||'N');
+        let lng = dms2dec(+m[6], +m[7], +m[8], m[10]||'E');
+        return {lat, lng};
+      }
+      return null;
+    }
+    function dms2dec(d, m, s, dir) {
+      let dec = d + m/60 + s/3600;
+      if(dir=='S' || dir=='W') dec = -dec;
+      return dec;
+    }
+    function showMarker({lat, lng}) {
+      if(marker) map.removeLayer(marker);
+      marker = L.marker([lat, lng]).addTo(map);
+    }
+    async function fetchAddress(lat,lng) {
+      try {
+        const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&accept-language=vi`;
+        let r = await fetch(url);
+        let j = await r.json();
+        return j.display_name || "Không tìm thấy địa chỉ mới";
+      } catch(e){ return "Lỗi khi truy vấn địa chỉ"; }
+    }
+    function showInfo(html) {
+      let panel = document.getElementById('infoPanel');
+      panel.innerHTML = html;
+      panel.style.display = 'block';
+    }
+    function copyAddress() {
+      let text = document.getElementById('addressText').innerText;
+      navigator.clipboard.writeText(text);
+      alert("Đã sao chép địa chỉ!");
+    }
+  </script>
+</body>
+</html>
