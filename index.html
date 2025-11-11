@@ -55,7 +55,6 @@
       border-radius: 10px;
       overflow:hidden;
     }
-    /* Nút chuyển chế độ bản đồ */
     .map-layer-btn {
       position: absolute;
       top: 14px;
@@ -85,7 +84,6 @@
       height: 27px;
       display: block;
     }
-    /* Menu popup chọn layer đẹp */
     .layer-menu {
       display: none;
       position: absolute;
@@ -188,7 +186,6 @@
     <div id="map"></div>
     <!-- Nút chuyển layer: -->
     <button class="map-layer-btn" id="layerBtn" title="Chọn kiểu bản đồ" onclick="toggleLayerMenu(event)">
-      <!-- Icon mới, dạng 2 lớp bản đồ, bo xanh/đen thanh lịch hơn -->
       <svg class="icon-layers" viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
         <rect x="7" y="17" width="30" height="6" rx="2.3" fill="#1a5da9" stroke="#2693e0" stroke-width="1.5"/>
         <rect x="11" y="25" width="22" height="5" rx="1.9" fill="#2693e0" stroke="#1a5da9" stroke-width="1.1"/>
@@ -226,13 +223,11 @@
         map.removeLayer(currentLayer);
         currentLayer = satelliteLayer.addTo(map);
       }
-      // Đổi giao diện lựa chọn
       document.querySelectorAll('.layer-menu-item').forEach(e=>e.classList.remove('selected'));
       btn.classList.add('selected');
       hideLayerMenu();
     }
 
-    // Nút popup menu
     function toggleLayerMenu(e) {
       let menu = document.getElementById('layerMenu');
       menu.classList.toggle('active');
@@ -247,9 +242,7 @@
 
     async function handleSearch() {
       const inputRaw = document.getElementById('inputLocation').value.trim();
-      const input = inputRaw.replace(/[()]/g, '').replace(/\s+/g, ' ').replace(/,/g, ',').replace(/^\s+|\s+$/g, '');
-
-      let latlng = parseLatLng(input);
+      let latlng = parseLatLng(inputRaw);
       if (!latlng) {
         showInfo("Không nhận diện được tọa độ. Vui lòng nhập lại theo hướng dẫn!");
         return;
@@ -262,12 +255,26 @@
         <br><button onclick="copyAddress()">Sao chép địa chỉ</button>`);
     }
 
+    // Tự động nhận dạng cả trường hợp dạng "10,968693, 106,484087" và chuyển đổi
     function parseLatLng(str) {
-      // Xử lý số thập phân
+      let reAndroid = /^\s*-?\d{1,3},\d+\s*,\s*-?\d{1,3},\d+\s*$/; // Dạng 10,968693, 106,484087
+      if (reAndroid.test(str)) {
+        const parts = str.split(',');
+        if (parts.length >= 4) {
+          let lat = (parts[0] + '.' + parts[1]).replace(/\s+/g,'');
+          let lng = (parts[2] + '.' + parts[3]).replace(/\s+/g,'');
+          return { lat: parseFloat(lat), lng: parseFloat(lng) };
+        } else if (parts.length === 2) {
+          // Trường hợp kiểu "10,968693,106,484087" (thiếu space)
+          let lat = parts[0].replace(',','.');
+          let lng = parts[1].replace(',','.');
+          return { lat: parseFloat(lat), lng: parseFloat(lng) };
+        }
+      }
+      // Xử lý số thập phân chuẩn
       let reDecimal = /^\s*([\-+]?\d+(?:\.\d+)?)\s*,\s*([\-+]?\d+(?:\.\d+)?)\s*$/i;
       let m = str.match(reDecimal);
       if (m) return {lat: parseFloat(m[1]), lng: parseFloat(m[2])};
-
       // Tọa độ độ phút giây
       let reDMS = /(\d+)[°:\s](\d+)[\':\s](\d+(\.\d+)?)[\"\s]?([NS])?\s*[ ,]?\s*(\d+)[°:\s](\d+)[\':\s](\d+(\.\d+)?)[\"\s]?([EW])?/i;
       m = str.match(reDMS);
@@ -306,14 +313,13 @@
       let text = document.getElementById('addressText').innerText;
       navigator.clipboard.writeText(text);
       alert("Đã sao chép địa chỉ!");
-      // Hiệu ứng mờ dần và ẩn panel sau 3s
       const panel = document.getElementById('infoPanel');
       setTimeout(() => {
         panel.classList.add('fade-out');
         setTimeout(() => {
           panel.style.display = 'none';
           panel.classList.remove('fade-out');
-        }, 800); // thời gian hiệu ứng mờ (khớp với css)
+        }, 800);
       }, 3000);
     }
   </script>
