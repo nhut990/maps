@@ -175,7 +175,7 @@
     Nhập Tọa độ thập phân (DD) hoặc phút giây (DMS)<br>
     VD: 
     <span class="highlight">10.771716, 106.706078</span> hoặc 
-    <span class="highlight">10°46'18.3"N 106°42'21.9"E</span> để xem địa chỉ mới
+    <span class="highlight">10°46'18.3"N 106°42'21.9"E</span> hoặc <span class="highlight">(10.943644, 106.490374)</span> để xem địa chỉ mới
   </h2>
   <div style="padding:0 10px;">
     <input type="text" id="inputLocation" placeholder="Nhập toạ độ (Copy từ Google Maps)">
@@ -241,23 +241,36 @@
     let marker = null;
 
     async function handleSearch() {
-      const inputRaw = document.getElementById('inputLocation').value.trim();
-      let latlng = parseLatLng(inputRaw);
-      if (!latlng) {
-        showInfo("Không nhận diện được tọa độ. Vui lòng nhập lại theo hướng dẫn!");
-        return;
+      const btn = document.querySelector('button[onclick="handleSearch()"]');
+      btn.disabled = true;
+      try {
+        const inputRaw = document.getElementById('inputLocation').value.trim();
+        let latlng = parseLatLng(inputRaw);
+        if (!latlng) {
+          showInfo("Không nhận diện được tọa độ. Vui lòng nhập lại theo hướng dẫn!");
+          return;
+        }
+        showMarker(latlng);
+        map.setView([latlng.lat, latlng.lng], 16);
+        showInfo("Đang tìm địa chỉ...");
+        const address = await fetchAddress(latlng.lat, latlng.lng);
+        showInfo(`<b>Địa chỉ mới nhất:</b><br><span id="addressText">${address}</span>
+          <br><button onclick="copyAddress()">Sao chép địa chỉ</button>`);
+      } finally {
+        btn.disabled = false;
       }
-      showMarker(latlng);
-      map.setView([latlng.lat, latlng.lng], 16);
-      showInfo("Đang tìm địa chỉ...");
-      const address = await fetchAddress(latlng.lat, latlng.lng);
-      showInfo(`<b>Địa chỉ mới nhất:</b><br><span id="addressText">${address}</span>
-        <br><button onclick="copyAddress()">Sao chép địa chỉ</button>`);
     }
 
-    // Tự động nhận dạng cả trường hợp dạng "10,968693, 106,484087" và chuyển đổi
+    // Cho phép nhập các định dạng có hoặc không dấu ngoặc ví dụ: (lat, lng) hay lat, lng
     function parseLatLng(str) {
-      let reAndroid = /^\s*-?\d{1,3},\d+\s*,\s*-?\d{1,3},\d+\s*$/; // Dạng 10,968693, 106,484087
+      // Loại bỏ dấu ngoặc đầu/cuối nếu có
+      str = str.replace(/^[\(\[]+|[\)\]]+$/g, '').trim();
+      // Dấu "," dùng cho định dạng chuẩn
+      let reDecimal = /^\s*([\-+]?\d+(?:\.\d+)?)\s*,\s*([\-+]?\d+(?:\.\d+)?)\s*$/i;
+      let m = str.match(reDecimal);
+      if(m) return { lat: parseFloat(m[1]), lng: parseFloat(m[2]) };
+      // Kiểm tra cho định dạng Android: "10,968693, 106,484087"
+      let reAndroid = /^\s*-?\d{1,3},\d+\s*,\s*-?\d{1,3},\d+\s*$/;
       if (reAndroid.test(str)) {
         const parts = str.split(',');
         if (parts.length >= 4) {
@@ -271,11 +284,7 @@
           return { lat: parseFloat(lat), lng: parseFloat(lng) };
         }
       }
-      // Xử lý số thập phân chuẩn
-      let reDecimal = /^\s*([\-+]?\d+(?:\.\d+)?)\s*,\s*([\-+]?\d+(?:\.\d+)?)\s*$/i;
-      let m = str.match(reDecimal);
-      if (m) return {lat: parseFloat(m[1]), lng: parseFloat(m[2])};
-      // Tọa độ độ phút giây
+      // Định dạng DMS
       let reDMS = /(\d+)[°:\s](\d+)[\':\s](\d+(\.\d+)?)[\"\s]?([NS])?\s*[ ,]?\s*(\d+)[°:\s](\d+)[\':\s](\d+(\.\d+)?)[\"\s]?([EW])?/i;
       m = str.match(reDMS);
       if (m) {
@@ -283,8 +292,16 @@
         let lng = dms2dec(+m[6], +m[7], +m[8], m[10]||'E');
         return {lat, lng};
       }
+      // Thử tách dấu ',' nếu bị copy cả khoảng trắng và ngoặc
+      let comma = str.split(',');
+      if(comma.length === 2) {
+        let lat = Number(comma[0].trim());
+        let lng = Number(comma[1].trim());
+        if(!isNaN(lat) && !isNaN(lng)) return {lat, lng};
+      }
       return null;
     }
+
     function dms2dec(d, m, s, dir) {
       let dec = d + m/60 + s/3600;
       if(dir=='S' || dir=='W') dec = -dec;
@@ -298,9 +315,10 @@
       try {
         const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&accept-language=vi`;
         let r = await fetch(url);
+        if(!r.ok) throw new Error("Không thể kết nối dịch vụ");
         let j = await r.json();
         return j.display_name || "Không tìm thấy địa chỉ mới";
-      } catch(e){ return "Lỗi khi truy vấn địa chỉ"; }
+      } catch(e){ return "Lỗi khi truy vấn địa chỉ: " + e.message; }
     }
     function showInfo(html) {
       let panel = document.getElementById('infoPanel');
@@ -322,6 +340,11 @@
         }, 800);
       }, 3000);
     }
+
+    // Hỗ trợ nhấn Enter để tìm kiếm
+    document.getElementById('inputLocation').addEventListener('keydown', function(e){
+      if(e.key === 'Enter') handleSearch();
+    });
   </script>
 </body>
 </html>
