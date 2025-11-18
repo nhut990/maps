@@ -50,7 +50,7 @@
       position: relative;
     }
     #map {
-      height: 340px;
+      height: 540px; /* ĐÃ KÉO DÀI Ở CHIỀU ĐỨNG */
       margin:6px;
       border-radius: 10px;
       overflow:hidden;
@@ -175,8 +175,8 @@
       .info-panel{ font-size: 0.97em; padding:9px 8px; min-width:120px;}
       #inputLocation { font-size: 0.99em; max-width:100vw; }
       button { font-size: 0.99em; padding: 7px 10px; }
-      #map { height: 220px; margin:4px; }
-      #map-container{ min-height:220px;}
+      #map { height: 300px; margin:4px; } /* trên mobile cũng tăng chiều cao */
+      #map-container{ min-height:300px;}
       .footer { font-size: 13px; margin: 12px 0 10px 0;}
       .map-layer-btn { width:40px; height:40px; }
       .icon-layers {width:21px; height:21px;}
@@ -220,22 +220,18 @@
   <script>
     // Tọa độ mặc định
     const DEFAULT_COORD = {lat: 10.3144756, lng: 106.6173715};
-
-    // Tiles mặc định
     const defaultLayer = L.tileLayer(
       'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution:"©OpenStreetMap" }
     );
-    // Tiles vệ tinh (Esri)
     const satelliteLayer = L.tileLayer(
       'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
       { attribution: '© Esri' }
     );
 
-    // Mở map tại tọa độ mặc định và chế độ vệ tinh
     let map = L.map('map', {
       center: [DEFAULT_COORD.lat, DEFAULT_COORD.lng],
       zoom: 16,
-      layers: [satelliteLayer] // mặc định vệ tinh
+      layers: [satelliteLayer]
     });
     let currentLayer = satelliteLayer;
 
@@ -376,9 +372,6 @@
       await showMarkerAndAddress(latlng);
       // Không ghi đè lên ô nhập tọa độ!
     });
-
-    // Khi mở web: chỉ mở map ở vị trí, không ghim marker, không hiển thị địa chỉ, không điền ô input
-    // --> Không cần xử lý gì thêm!
   </script>
 </body>
 </html>
