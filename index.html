@@ -155,7 +155,6 @@
       color: #888;
       font-weight: 400;
     }
-    /* Loader CSS cho hiệu ứng quay loading */
     .loader {
       display: inline-block;
       border: 2.5px solid #f3f3f3;
@@ -209,8 +208,8 @@
     </button>
     <!-- Layer menu popup -->
     <div class="layer-menu" id="layerMenu">
-      <button class="layer-menu-item selected" onclick="setBaseLayer('default', this)">Mặc định</button>
-      <button class="layer-menu-item" onclick="setBaseLayer('satellite', this)">Vệ tinh</button>
+      <button class="layer-menu-item" onclick="setBaseLayer('default', this)">Mặc định</button>
+      <button class="layer-menu-item selected" onclick="setBaseLayer('satellite', this)">Vệ tinh</button>
     </div>
   </div>
   <div class="footer">
@@ -219,15 +218,26 @@
   </div>
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script>
-    let map = L.map('map').setView([10.7769, 106.7009], 10);
+    // Tọa độ mặc định
+    const DEFAULT_COORD = {lat: 10.3144756, lng: 106.6173715};
+
     // Tiles mặc định
-    const defaultLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {attribution:"©OpenStreetMap"});
+    const defaultLayer = L.tileLayer(
+      'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution:"©OpenStreetMap" }
+    );
     // Tiles vệ tinh (Esri)
     const satelliteLayer = L.tileLayer(
       'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
       { attribution: '© Esri' }
     );
-    let currentLayer = defaultLayer.addTo(map);
+
+    // Mở map tại tọa độ mặc định và chế độ vệ tinh
+    let map = L.map('map', {
+      center: [DEFAULT_COORD.lat, DEFAULT_COORD.lng],
+      zoom: 16,
+      layers: [satelliteLayer] // mặc định vệ tinh
+    });
+    let currentLayer = satelliteLayer;
 
     function setBaseLayer(type, btn) {
       if(type === 'default' && currentLayer !== defaultLayer) {
@@ -266,27 +276,28 @@
           document.getElementById('inputLocation').focus();
           return;
         }
-        showMarker(latlng);
-        map.setView([latlng.lat, latlng.lng], 16);
-        showInfo('<span class="loader"></span>Đang tìm địa chỉ...');
-        const address = await fetchAddress(latlng.lat, latlng.lng);
-        showInfo(`<b>Địa chỉ mới nhất:</b><br><span id="addressText">${address}</span>
-          <br><button onclick="copyAddress()">Sao chép địa chỉ</button>`);
+        await showMarkerAndAddress(latlng);
         document.getElementById('inputLocation').focus();
       } finally {
         btn.disabled = false;
       }
     }
 
-    // Cho phép nhập các định dạng có hoặc không dấu ngoặc ví dụ: (lat, lng) hay lat, lng
+    async function showMarkerAndAddress({lat, lng}) {
+      if(marker) map.removeLayer(marker);
+      marker = L.marker([lat, lng]).addTo(map);
+      map.setView([lat, lng], map.getZoom());
+      showInfo('<span class="loader"></span>Đang tìm địa chỉ...');
+      const address = await fetchAddress(lat, lng);
+      showInfo(`<b>Địa chỉ mới nhất:</b><br><span id="addressText">${address}</span>
+        <br><button onclick="copyAddress()">Sao chép địa chỉ</button>`);
+    }
+
     function parseLatLng(str) {
-      // Loại bỏ dấu ngoặc đầu/cuối nếu có
       str = str.replace(/^[\(\[]+|[\)\]]+$/g, '').trim();
-      // Dấu "," dùng cho định dạng chuẩn
       let reDecimal = /^\s*([\-+]?\d+(?:\.\d+)?)\s*,\s*([\-+]?\d+(?:\.\d+)?)\s*$/i;
       let m = str.match(reDecimal);
       if(m) return { lat: parseFloat(m[1]), lng: parseFloat(m[2]) };
-      // Kiểm tra cho định dạng Android: "10,968693, 106,484087"
       let reAndroid = /^\s*-?\d{1,3},\d+\s*,\s*-?\d{1,3},\d+\s*$/;
       if (reAndroid.test(str)) {
         const parts = str.split(',');
@@ -300,7 +311,6 @@
           return { lat: parseFloat(lat), lng: parseFloat(lng) };
         }
       }
-      // Định dạng DMS
       let reDMS = /(\d+)[°:\s](\d+)[\':\s](\d+(\.\d+)?)[\"\s]?([NS])?\s*[ ,]?\s*(\d+)[°:\s](\d+)[\':\s](\d+(\.\d+)?)[\"\s]?([EW])?/i;
       m = str.match(reDMS);
       if (m) {
@@ -321,10 +331,6 @@
       let dec = d + m/60 + s/3600;
       if(dir=='S' || dir=='W') dec = -dec;
       return dec;
-    }
-    function showMarker({lat, lng}) {
-      if(marker) map.removeLayer(marker);
-      marker = L.marker([lat, lng]).addTo(map);
     }
     async function fetchAddress(lat,lng) {
       try {
@@ -359,9 +365,20 @@
       }, 3000);
       document.getElementById('inputLocation').focus();
     }
+
     document.getElementById('inputLocation').addEventListener('keydown', function(e){
       if(e.key === 'Enter') handleSearch();
     });
+
+    // Khi click vào map, hiển thị địa chỉ vị trí bấm
+    map.on('click', async function(e) {
+      let latlng = {lat: e.latlng.lat, lng: e.latlng.lng};
+      await showMarkerAndAddress(latlng);
+      // Không ghi đè lên ô nhập tọa độ!
+    });
+
+    // Khi mở web: chỉ mở map ở vị trí, không ghim marker, không hiển thị địa chỉ, không điền ô input
+    // --> Không cần xử lý gì thêm!
   </script>
 </body>
 </html>
