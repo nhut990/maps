@@ -155,6 +155,22 @@
       color: #888;
       font-weight: 400;
     }
+    /* Loader CSS cho hiệu ứng quay loading */
+    .loader {
+      display: inline-block;
+      border: 2.5px solid #f3f3f3;
+      border-top: 2.5px solid #2693e0;
+      border-radius: 50%;
+      width: 18px;
+      height: 18px;
+      animation: spin 0.7s linear infinite;
+      margin-right:6px;
+      vertical-align:middle;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg);}
+      100% { transform: rotate(360deg);}
+    }
     @media (max-width:600px) {
       h2 { font-size: 1em; padding:10px; }
       .info-panel{ font-size: 0.97em; padding:9px 8px; min-width:120px;}
@@ -175,7 +191,7 @@
     Nhập Tọa độ thập phân (DD) hoặc phút giây (DMS)<br>
     VD: 
     <span class="highlight">10.771716, 106.706078</span> hoặc 
-    <span class="highlight">10°46'18.3"N 106°42'21.9"E</span> hoặc <span class="highlight">(10.943644, 106.490374)</span> để xem địa chỉ mới
+    <span class="highlight">10°46'18.3"N 106°42'21.9"E</span> để xem địa chỉ mới <span class="highlight">(kết quả có thể bị sai sót)</span>
   </h2>
   <div style="padding:0 10px;">
     <input type="text" id="inputLocation" placeholder="Nhập toạ độ (Copy từ Google Maps)">
@@ -204,7 +220,6 @@
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script>
     let map = L.map('map').setView([10.7769, 106.7009], 10);
-
     // Tiles mặc định
     const defaultLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {attribution:"©OpenStreetMap"});
     // Tiles vệ tinh (Esri)
@@ -248,14 +263,16 @@
         let latlng = parseLatLng(inputRaw);
         if (!latlng) {
           showInfo("Không nhận diện được tọa độ. Vui lòng nhập lại theo hướng dẫn!");
+          document.getElementById('inputLocation').focus();
           return;
         }
         showMarker(latlng);
         map.setView([latlng.lat, latlng.lng], 16);
-        showInfo("Đang tìm địa chỉ...");
+        showInfo('<span class="loader"></span>Đang tìm địa chỉ...');
         const address = await fetchAddress(latlng.lat, latlng.lng);
         showInfo(`<b>Địa chỉ mới nhất:</b><br><span id="addressText">${address}</span>
           <br><button onclick="copyAddress()">Sao chép địa chỉ</button>`);
+        document.getElementById('inputLocation').focus();
       } finally {
         btn.disabled = false;
       }
@@ -278,7 +295,6 @@
           let lng = (parts[2] + '.' + parts[3]).replace(/\s+/g,'');
           return { lat: parseFloat(lat), lng: parseFloat(lng) };
         } else if (parts.length === 2) {
-          // Trường hợp kiểu "10,968693,106,484087" (thiếu space)
           let lat = parts[0].replace(',','.');
           let lng = parts[1].replace(',','.');
           return { lat: parseFloat(lat), lng: parseFloat(lng) };
@@ -292,7 +308,6 @@
         let lng = dms2dec(+m[6], +m[7], +m[8], m[10]||'E');
         return {lat, lng};
       }
-      // Thử tách dấu ',' nếu bị copy cả khoảng trắng và ngoặc
       let comma = str.split(',');
       if(comma.length === 2) {
         let lat = Number(comma[0].trim());
@@ -315,7 +330,10 @@
       try {
         const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&accept-language=vi`;
         let r = await fetch(url);
-        if(!r.ok) throw new Error("Không thể kết nối dịch vụ");
+        if(!r.ok) {
+          if(r.status === 429) throw new Error("Quá nhiều lượt truy vấn. Vui lòng thử lại sau vài phút");
+          throw new Error("Không thể kết nối dịch vụ (Lỗi " + r.status + ")");
+        }
         let j = await r.json();
         return j.display_name || "Không tìm thấy địa chỉ mới";
       } catch(e){ return "Lỗi khi truy vấn địa chỉ: " + e.message; }
@@ -339,9 +357,8 @@
           panel.classList.remove('fade-out');
         }, 800);
       }, 3000);
+      document.getElementById('inputLocation').focus();
     }
-
-    // Hỗ trợ nhấn Enter để tìm kiếm
     document.getElementById('inputLocation').addEventListener('keydown', function(e){
       if(e.key === 'Enter') handleSearch();
     });
